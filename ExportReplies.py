@@ -5,7 +5,6 @@ import requests
 from concurrent.futures import ThreadPoolExecutor
 from typing import List
 
-# Sabit dosya adları
 THREADS_JSON = "threads.json"
 REPLIES_JSON = "replies.json"
 PROGRESS_FILE = "progress.json"
