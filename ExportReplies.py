@@ -19,9 +19,6 @@ def load_config(config_path: str = 'config.json') -> dict:
         return json.load(f)
 
 def fetch_replies_for_thread(token: str, cookie: str, channel: str, thread_ts: str, limit: int = 1000) -> List[dict]:
-    """
-    Belirli bir thread_ts için tüm reply'leri çeker.
-    """
     url = "https://slack.com/api/conversations.replies"
     headers = {
         "Authorization": f"Bearer {token}",
@@ -53,7 +50,6 @@ def fetch_replies_for_thread(token: str, cookie: str, channel: str, thread_ts: s
             break
 
         msgs = data.get("messages", [])
-        # İlk mesaj thread starter, geri kalan reply
         batch = [m for m in msgs if m.get("thread_ts") and m["ts"] != m["thread_ts"]]
         replies.extend(batch)
 
@@ -76,7 +72,6 @@ def main():
     if not token or not channel:
         raise ValueError("SLACK_TOKEN ve CHANNEL_ID config.json içinde olmalı.")
 
-    # threads.json oku
     if not os.path.exists(THREADS_JSON):
         raise FileNotFoundError(f"{THREADS_JSON} bulunamadı. Önce thread export scriptini çalıştırın.")
     with open(THREADS_JSON, "r", encoding="utf-8") as f:
@@ -86,7 +81,6 @@ def main():
     total = len(thread_ts_list)
     print(f"Toplam işlenecek thread: {total}")
 
-    # progress.json’dan resume index
     start_idx = 0
     if os.path.exists(PROGRESS_FILE):
         try:
@@ -95,7 +89,6 @@ def main():
         except:
             start_idx = 0
 
-    # mevcut replies.json
     if os.path.exists(REPLIES_JSON):
         try:
             with open(REPLIES_JSON, "r", encoding="utf-8") as rf:
@@ -105,7 +98,6 @@ def main():
     else:
         replies_data = []
 
-    # Paralel işleme
     slice_ts = thread_ts_list[start_idx:]
     with ThreadPoolExecutor(max_workers=5) as executor:
         for offset, replies in enumerate(executor.map(
@@ -115,12 +107,10 @@ def main():
             idx = start_idx + offset
             replies_data.extend(replies)
 
-            # her thread’ten sonra kaydet
             save_json(replies_data, REPLIES_JSON)
             save_json({"last_processed_index": idx + 1}, PROGRESS_FILE)
             print(f"[{idx+1}/{total}] ts={slice_ts[offset]} → {len(replies)} reply kaydedildi.")
 
-    # Bittiğinde progress’ü sıfırla
     save_json({"last_processed_index": 0}, PROGRESS_FILE)
     print("Tüm reply’ler çekildi. progress.json sıfırlandı.")
 
