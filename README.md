@@ -115,3 +115,52 @@ Create a `config.json` file **in the same directory** as the scripts with the fo
   - Make sure your Slack user account has the necessary permissions for reading conversation history in that channel.
 
 By following these steps, you’ll export Slack threads (main messages) and all of their replies into JSON files.
+
+
+## 🆕 New Features v2.0
+
+### 1. Automatic `since_ts` Tracking
+- Reads the last processed message’s `ts` value from `since_ts.txt`.  
+- If the file is missing or empty, pulls the entire history on first run.  
+- After fetching, writes the highest `ts` back to `since_ts.txt`.  
+- Ensures each subsequent run only processes **newer** messages.
+
+### 2. Parallel Permalink & Reply Retrieval
+- Uses `concurrent.futures.ThreadPoolExecutor` to fire up to **10** concurrent `chat.getPermalink` calls for thread-starter messages.  
+- Replies fetching script uses up to **5** parallel workers against `conversations.replies`.  
+- Results are **sorted by `ts`** to preserve chronological order.
+
+### 3. Robust Rate-Limit Handling
+- On HTTP 429 (rate-limit), reads `Retry-After` header and **sleeps** before retrying.  
+- Applies this logic uniformly across `conversations.history`, `chat.getPermalink` and `conversations.replies` endpoints.  
+- Prevents hard failures on large channels or big threads.
+
+### 4. Resume-able Progress Tracking
+- Replies script records “last processed index” in `progress.json` after each thread.  
+- On restart, resumes from that index—no need to re-fetch already handled threads.  
+- Once all threads are done, `progress.json` resets to zero for the next full export.
+
+### 5. File Outputs
+- **Threads:**  
+  - `threads.json` (full JSON dump)  
+  - Optional: `threads.csv` for spreadsheet-friendly output  
+- **Replies:**  
+  - `replies.json` (accumulated thread replies)  
+- **Tracker Files:**  
+  - `since_ts.txt` (last `ts` checkpoint)  
+  - `progress.json` (reply-fetch index)
+
+---
+
+#### Example Workflow
+
+1. **First Run:**  
+   - `since_ts.txt` is empty or missing → fetch all threads via `conversations.history`.  
+   - Write the newest `ts` into `since_ts.txt`.
+
+2. **Subsequent Runs:**  
+   - Read `since_ts` → fetch only threads newer than that value.  
+   - Replies script picks up from its `progress.json` checkpoint.
+
+3. **Inspecting Results:**  
+   - Use `threads.json` & `replies.json` to see a fully chronological export of all threads and their replies.  
